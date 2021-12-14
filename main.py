@@ -6,6 +6,7 @@ import random
 import math
 # from scipy.ndimage.interpolation import rotate
 from utils import mapRange
+from functools import reduce
 
 # screen
 WIDTH, HEIGHT = (800, 600)
@@ -154,64 +155,74 @@ class Rocket():
         self.crashed = False
         self.completed = False
 
-        self.TRUSTER_1 = np.array([self.rocket_width / 2, self.rocket_height / 6])
-        self.TRUSTER_2 = np.array([self.rocket_width / 2, -self.rocket_height / 6])
-        self.TRUSTER_3 = np.array([-self.rocket_width / 2, self.rocket_height / 6])
-        self.TRUSTER_4 = np.array([-self.rocket_width / 2, -self.rocket_height / 6])
+        self.booster_size = 20
 
-        # # Loading the image for rockets object from assets folder
-        # self.image = pygame.Surface((320, 200), pygame.SRCALPHA)
-        # pygame.draw.polygon(self.image, pygame.Color('dodgerblue1'), ((1, 0), (120, 35), (1, 70)))
-        #
         self.image = pygame.image.load("./assets/rocket.png")
         self.image = pygame.transform.scale(self.image, (self.rocket_height, self.rocket_height))
 
-        # self.origin_image = self.image
-        # self.rect = self.image.get_rect(center=(self.pos[0][0], self.pos[1][0]))
+        self.booster = pygame.image.load("./assets/loud.png")
+        self.booster = pygame.transform.scale(self.booster, (self.booster_size, self.booster_size))
+
+        self.booster1 = self.booster.copy()
+        self.booster2 = self.booster.copy()
+        self.booster3 = self.booster.copy()
 
         if dna is not None:
             self.dna = dna
         else:
             self.dna = DNA(num_thrusters=4)
 
+        self.TRUSTER_1 = np.array([self.rocket_width / 2, self.rocket_height / 6])
+        self.TRUSTER_2 = np.array([self.rocket_width / 2, -self.rocket_height / 6])
+        self.TRUSTER_3 = np.array([-self.rocket_width / 2, self.rocket_height / 6])
+        self.TRUSTER_4 = np.array([-self.rocket_width / 2, -self.rocket_height / 6])
+
+        self.num_thrusters = 4
+        self.thrusters = [self.TRUSTER_1, self.TRUSTER_2, self.TRUSTER_3, self.TRUSTER_4]
+        self.forces = [self.dna.genes[i] for i in range(self.num_thrusters)]
+
         self.TRUST_1 = self.dna.genes[0]
         self.TRUST_2 = self.dna.genes[1]
         self.TRUST_3 = self.dna.genes[2]
         self.TRUST_4 = self.dna.genes[3]
 
-    def log(self):
-        with open("force.txt", "a") as log:
-            # log.write(f"_________________THRUSTERS______________\n\n")
-            # log.write(f"Thruster 1: {self.TRUSTER_1}\n")
-            # log.write(f"Thruster 2: {self.TRUSTER_2}\n")
-            # log.write(f"Thruster 3: {self.TRUSTER_3}\n")
-            # log.write(f"Thruster 4: {self.TRUSTER_4}\n\n")
+    def global_coords(self, x, y):
+        pos = np.array([x, y])
+        pos = pos.reshape(2, 1)
+        return self.pos + pos
 
-            log.write("__________________THRUSTS_______________\n\n")
-            log.write(f"Thrust 1: {self.TRUST_1}\n")
-            log.write(f"Thrust 2: {self.TRUST_2}\n")
-            log.write(f"Thrust 3: {self.TRUST_3}\n")
-            log.write(f"Thrust 4: {self.TRUST_4}\n\n")
+    def draw_img(self, screen, image, x, y, angle):
+        """ Rotates the image for rocket by the given angle and draws the rotated image"""
+        rotated_image = pygame.transform.rotate(image, angle)
+        screen.blit(rotated_image, rotated_image.get_rect(center=image.get_rect(topleft=(x, y)).center).topleft)
 
-            # log.write(f"Velocity    : {self.vel}\n")
-            # log.write(f"Position    : {self.pos}\n")
-            # log.write(f"Acceleration: {self.acc}\n")
-            # log.write(f"Theta       : {self.theta}\n")
-            # log.write(f"Theta dot   : {self.theta_dot}\n")
+    def draw_boosters(self, screen, image, x, y):
+        """ Rotates the boosters for rocket by the pos and draws the rotated boosters"""
+        # screen.blit(rotated_image, rotated_image.get_rect(center=image.get_rect(topleft=(x, y)).center).topleft)
+        global_booster_coords = self.global_coords(x, y)
+        screen.blit(image, image.get_rect(center=(global_booster_coords[0], global_booster_coords[1])))
+
+    def torque(self, r, force):
+        """ Calculates the Torque of the given Force """
+        return np.cross(r, force)
 
     def calcfitness(self):
-        # d = math.sqrt(sum([(a - b) ** 2 for a, b in zip(self.pos, TARGET)]))
         d = self.dist(self.pos, TARGET)
-
-        # print(self.dist(self.pos, TARGET))
-
-        # print("------------------------")
-        # print("distance ", d)
 
         max_dist = math.sqrt((TARGET[0][0]) ** 2 + (HEIGHT - TARGET[1][0]) ** 2)
         self.fitness = mapRange(d, 0, WIDTH, max_dist, 0)
-        # print("Fitness ", self.fitness)
-        # print("------------------------")
+
+    def collision(self):
+        pos_x = self.pos[0][0]
+        pos_y = self.pos[1][0]
+
+        # Rocket has hit left or right of window
+        if (pos_x + self.rocket_width > WIDTH or pos_x < 0):
+            self.crashed = True
+
+        # Rocket has hit top or bottom of window
+        if (pos_y + self.rocket_height > HEIGHT or pos_y < 0):
+            self.crashed = True
 
     def dist(self, a, b):
         t_x = b[0][0]
@@ -220,64 +231,17 @@ class Rocket():
         pos_y = a[1][0]
 
         return math.sqrt((t_y - pos_y) ** 2 + (t_x - pos_x) ** 2)
-        # print(t_x,t_y,pos_x,pos_y)
-
-    def collision(self):
-        pos_x = self.pos[0][0]
-        pos_y = self.pos[1][0]
-
-        # # Rocket hit the barrier
-        # if (pos_x > WIDTH and  pos_x < WIDTH + self.rocket_width and  pos_y > HEIGHT and pos_y < HEIGHT + self.rocket_height):
-        #     self.crashed = True;
-
-        # Rocket has hit left or right of window
-        if (pos_x + self.rocket_width > WIDTH or pos_x < 0):
-            # print("Collision")
-            self.crashed = True
-
-        # Rocket has hit top or bottom of window
-        if (pos_y + self.rocket_height > HEIGHT or pos_y < 0):
-            self.crashed = True
-            # print("Collision")
-
-    def show(self, win):
-        """ Shows the image for the rocket"""
-        self.draw_img(win, self.image, self.pos[0][0], self.pos[1][0], self.theta)
-        # self.rectRotated(win, WHITE, self.pos, 12, self.angle)
-
-    def draw_img(self, screen, image, x, y, angle):
-        """ Rotates the image for rocket by the given angle and draws the rotated image"""
-        rotated_image = pygame.transform.rotate(image, angle)
-        screen.blit(rotated_image, rotated_image.get_rect(center=image.get_rect(topleft=(x, y)).center).topleft)
-
-    def rectRotated(self, surface, color, pos, fill, angle):
-        """ Rotates the Rectangle for rocket by the given angle and draws the rotated rectangle"""
-        max_area = max(self.rocket_width, self.rocket_height)
-        s = pygame.Surface((max_area, max_area))
-        s = s.convert_alpha()
-        s.fill((0, 0, 0, 0))
-        pygame.draw.rect(s, color, (0, 0, self.rocket_width, self.rocket_height), fill)
-        # surface.blit(self.rocket_image, (pos[0][0], pos[1][0]))
-        s = pygame.transform.rotate(s, angle)
-        surface.blit(s, (pos[0][0], pos[1][0]))
-
-    def torque(self, r, force):
-        """ Calculates the Torque given Force """
-        return np.cross(r, force)
 
     def sum_of_all_torques(self):
-        sum = self.torque(self.TRUSTER_1, self.TRUST_1) + self.torque(self.TRUSTER_2, self.TRUST_2) + self.torque(self.TRUSTER_3, self.TRUST_3) + self.torque(self.TRUSTER_4, self.TRUST_4)
-
-        # with open("log.txt","a") as log:
-        #     log.write(f"Torques Force   : {sum}\n")
-
+        """  Calculates the Torque from all the force Vectors and calculates it sum"""
+        sum = self.torque(self.TRUSTER_1, self.forces[0]) + self.torque(self.TRUSTER_2, self.forces[1]) + self.torque(self.TRUSTER_3, self.forces[2]) + self.torque(self.TRUSTER_4, self.forces[3])
         return self.mag * np.asscalar(sum)
 
     def sum_of_all_forces(self):
-        sum_of_forces = self.TRUST_1 + self.TRUST_2 + self.TRUST_3 + self.TRUST_4
+        """  Calculates the sum of all the force Vectors"""
+        sum_of_forces = reduce(lambda a, b: a + b, self.forces)
         # print(sum_of_forces)
 
-        # print("Sum " ,sum_of_forces)
         c, s = np.cos(self.theta), np.sin(self.theta)
         rotational_matrix = np.array(((c, -s), (s, c)))
 
@@ -286,6 +250,14 @@ class Rocket():
         # with open("log.txt","a") as log:
         #     log.write(f"\nGlobal Force   : {global_forces}\n")
         return global_forces
+
+    def show(self, win):
+        """ Shows the image for the rocket"""
+        self.draw_img(win, self.image, self.pos[0][0], self.pos[1][0], self.theta)
+
+        # for i in range(self.num_thrusters):
+        #     print(self.thrusters[i])
+        #     self.draw_boosters(win, self.booster, self.thrusters[i][0], self.thrusters[i][1])
 
     def calculate(self, canonical_forces, initial_pos, initial_vel):
         self.acc = canonical_forces * 0.01
