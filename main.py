@@ -4,7 +4,7 @@ import pygame
 import numpy as np
 import random
 import math
-import time
+# import time
 # from scipy.ndimage.interpolation import rotate
 from utils import mapRange
 from functools import reduce
@@ -12,7 +12,7 @@ from functools import reduce
 # screen
 WIDTH, HEIGHT = (1200, 800)
 TARGET = np.array([WIDTH / 2, 100])
-LIFESPAN = 500
+LIFESPAN = 600
 
 # Color
 BLACK = (0, 0, 0)
@@ -21,84 +21,76 @@ WHITE = (255, 255, 255)
 
 
 class Population(object):
+    """ Creates a array of Rockets and Performs Functions as a whole"""
     def __init__(self):
-        self.rockets = []
-        self.pop_max = 25
 
-        self.mating_pool = []
+        self.rockets = [] # Array to store rocket objects
+        self.pop_max = 25 # Maximum Population size
 
+        self.mating_pool = [] # to store copies of rocket objects for selection
+
+        # Creates given amount of objects and stores it in an array
         for _ in range(self.pop_max):
             self.rockets.append(Rocket())
 
     def run(self, win, counter):
+        """ Updates our Population object params and shows it on screen """
         for i in range(self.pop_max):
             self.rockets[i].update(win, counter)
-            # self.rockets[i].show(win)
 
     def evaluate(self):
-        # print("Evaluation\n")
+        """ Evalutes our Population based on some fitness value and creates a mating poll based on them """
         max_fitness = 0
+        sum_fitness = 0
 
         for i in range(self.pop_max):
             self.rockets[i].calcfitness()
             if self.rockets[i].fitness > max_fitness:
                 max_fitness = self.rockets[i].fitness
+                sum_fitness += self.rockets[i].fitness
 
-        print(max_fitness)
+        print("Average Fitness: ", sum_fitness / max_fitness)
+
         for i in range(self.pop_max):
             self.rockets[i].fitness /= max_fitness
 
+        # Empties the mating pool before putting new population in it
         self.mating_pool = []
+
         for i in range(self.pop_max):
-            # rocket_count = 0
             n = math.floor(self.rockets[i].fitness * 100)
             for _ in range(n):
                 self.mating_pool.append(self.rockets[i])
-                # rocket_count += 1
-            # print("Rocket ", i, " has ", rocket_count, " rockets in Mating Pool")
         print("Mating Pool: ", len(self.mating_pool))
 
     def natural_selection(self):
-        # print("Selection\n")
+        """ Selects two fit members of Population and performs crossover and mutation on them, 
+            then makes the new population based on the new created member """
         new_rockets = []
         for _ in range(len(self.rockets)):
             parentA = np.random.choice(self.mating_pool).dna
             parentB = np.random.choice(self.mating_pool).dna
-            # print("parentA", parentA.genes)
-            # print("parentB", parentB.genes)
-
             child = parentA.crossover(parentB)
             child.mutation()
-
-            # print(child.genes)
-            # with open("force.txt", "a") as log:
-            #     log.write(f"New Force Vector : {child.genes} \n")
-
             new_rockets.append(Rocket(child))
         self.rockets = new_rockets
 
 
 class DNA(object):
-    lifespan = 100
-
     def __init__(self, genes=[], num_thrusters=1):
-
-        self.mag = 0.2
+        self.mag = 0.6  # Force scaling factor
         self.num_thrusters = num_thrusters
 
+        # If genes is not provided initializes a random value for it, otherwise takes it as a param
         if genes != []:
             self.genes = genes
         else:
-            self.genes = np.random.rand(LIFESPAN, self.num_thrusters)
-            # self.genes[:, :, 0] = 0
-            # print("Genes Shape: ", self.genes.shape)
-            # print(self.genes)
+            # to minimize the starting force vectors to small values
+            self.genes = np.random.rand(LIFESPAN, self.num_thrusters) * self.mag
 
     def crossover(self, partner):
-        # print("Crossover")
+        """ Combines two members and makes an offspring of both """
         newgenes = np.zeros((len(self.genes), 4))
-
-        # print(self.genes, " ", partner.genes)
 
         mid = np.random.randint(len(self.genes))
         for i in range(len(self.genes)):
@@ -107,50 +99,40 @@ class DNA(object):
             else:
                 newgenes[i] = partner.genes[i]
 
-        # print("-------------Crossover Genes------------")
-        # print(newgenes)
-        # print("\n")
+        # to minimize the new force vectors to small values
+        newgenes = newgenes * self.mag
 
         return DNA(newgenes, self.num_thrusters)
 
     def mutation(self):
-        # print("Mutation")
+        """ Random Chance of the new member having different properties than the parents """
         for i in range(len(self.genes)):
             # if random number less than 0.01, new gene is then random vector
             if random.random() < 0.01:
 
                 mutated_gene = np.random.randn(self.num_thrusters)
-                # print("Mutated genes", mutated_gene)
                 self.genes[i] = mutated_gene
-
-        # print(self.genes)
-        # print("-------------Mutated Genes------------")
 
 
 class Rocket():
     count = 0
 
-    def __init__(self, dna=None, theta=180):
+    def __init__(self, dna=None, theta=90):
         # Accelartion, Velocity and Position Vectors
-        self.acc = np.zeros((1, 2))[0]
-        self.vel = np.zeros((1, 2))[0]
+        self.acc = np.zeros((1, 2))[0]  # Starting Accwlartion 
+        self.vel = np.zeros((1, 2))[0]  # Starting velocity
 
         self.rocket_width = 30
         self.rocket_height = 30
 
-        self.pos = np.array([WIDTH / 2, HEIGHT / 2])
+        self.pos = np.array([WIDTH / 2, HEIGHT / 2])    # Starting position
 
-        # Angular velocity
-        self.theta_dot = 0
-
-        self.fitness = 0
+        self.theta_dot = 0  # Starting angular velocity
+        self.fitness = 0    # Starting fitness value
 
         self.color = WHITE
-        self.theta = np.radians(theta)
-        self.mag = 0.01
-
-        self.crashed = False
-        self.completed = False
+        self.theta = np.radians(theta)  # Starting Angle in Radians
+        self.mag = 0.005                # Rotation Scaling Factor
 
         self.booster_size = 20
 
@@ -176,17 +158,13 @@ class Rocket():
         self.thrusters = [self.TRUSTER_1, self.TRUSTER_2, self.TRUSTER_3, self.TRUSTER_4]
         self.forces = self.dna.genes
 
-        # self.TRUST_1 = self.dna.genes[0]
-        # self.TRUST_2 = self.dna.genes[1]
-        # self.TRUST_3 = self.dna.genes[2]
-        # self.TRUST_4 = self.dna.genes[3]
-
     def global_coords(self, x, y):
+        """ Convert local coords to global coords """
         return self.pos + np.array([x, y])
 
     def show(self, win):
-        """ Shows the image for the rocket"""
-        self.draw_img(win, self.image, self.pos[0], self.pos[1], np.rad2deg(self.theta))
+        """ Draws the rocket object and its booster points """
+        self.draw_img(win, self.image, self.pos[0], HEIGHT - self.pos[1], np.rad2deg(self.theta))
 
         # for i in range(self.num_thrusters):
         #     self.draw_boosters(win, self.booster, self.thrusters[i][0], self.thrusters[i][1])
@@ -207,12 +185,14 @@ class Rocket():
         return r[0] * force
 
     def calcfitness(self):
+        """ calculates the distance between target and our current position and geives a fitness value """
         d = self.dist(self.pos, TARGET)
 
         # max_dist = math.sqrt((TARGET[0]) ** 2 + (HEIGHT - TARGET[1]) ** 2)
         self.fitness = mapRange(d, 0, WIDTH, 5000, 0)
 
     def collision(self):
+        """ Detects collision with the edges of the screen and stops the rocket """
         # Rocket has hit left or right of window
         if (self.pos[0] + self.rocket_width > WIDTH or self.pos[0] < 0):
             self.crashed = True
@@ -222,19 +202,11 @@ class Rocket():
             self.crashed = True
 
     def dist(self, a, b):
-        t_x = b[0]
-        t_y = b[1]
-        pos_x = a[0]
-        pos_y = a[1]
-
-        # print(t_x, t_y)
-        # print(pos_x, pos_y)
-        return math.sqrt((t_y - pos_y) ** 2 + (t_x - pos_x) ** 2)
+        """ Euclidean Distance Formula """
+        return math.sqrt((b[1]- a[1]) ** 2 + (b[0] - a[0]) ** 2)
 
     def sum_of_all_torques(self, forces):
         """  Calculates the Torque from all the force Vectors and calculates it sum"""
-        # print(" Force in sum_of_torques", forces)
-
         sum = self.torque(self.TRUSTER_1, forces[0]) + self.torque(self.TRUSTER_2, forces[1]) + self.torque(self.TRUSTER_3, forces[2]) + self.torque(self.TRUSTER_4, forces[3])
 
         return self.mag * np.asscalar(sum)
@@ -243,39 +215,22 @@ class Rocket():
         """  Calculates the sum of all the force Vectors"""
         sum_of_forces = np.array(reduce(lambda a, b: a + b, force))
 
-        # print("Sum of all forces", sum_of_forces)
-
         global_forces = np.array([-sum_of_forces * np.sin(theta), sum_of_forces * np.cos(theta)])
         return global_forces
 
     def calculate(self, canonical_forces, initial_pos, initial_vel):
         self.acc = canonical_forces * 0.01
-
-        # print("\n -------------------")
-        # print("canonical_forces: ", self.acc)
-        # print("Initial Velocity ", initial_vel)
         final_vel = self.acc + initial_vel
-        # print("final Velocity ", final_vel)
 
         final_pos = initial_pos + (final_vel + initial_vel) / 2
-        # print("Sum: ", initial_pos)
-        # print("final Posiition ", final_pos)
-        #
         return final_vel, final_pos
 
     def update(self, win, i):
         """ Calculates the new velocity, position, angular velocity and theta based on the ΣF and Στ 
-            Also check for collision and updates the new Forces """
-        # count = 0
-        # self.collision()
+            , updates the new Forces and draws it on screen """
 
-        # if not self.crashed:
-        # print("Current Position", self.pos, "\n")
-        # print("------------------------------------")
-        # print("Counter", count)
         self.vel, self.pos = self.calculate(self.sum_of_all_forces(self.forces[i], self.theta), self.pos, self.vel)
         self.theta_dot, self.theta = self.calculate(self.sum_of_all_torques(self.forces[i]), self.theta, self.theta_dot)
-        # print("Update Complete")
         self.show(win)
 
 
