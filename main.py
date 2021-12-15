@@ -12,7 +12,7 @@ from functools import reduce
 # screen
 WIDTH, HEIGHT = (1200, 800)
 TARGET = np.array([WIDTH / 2, 300  + HEIGHT / 2])
-LIFESPAN = 500
+LIFESPAN = 1200
 
 # Color
 BLACK = (0, 0, 0)
@@ -81,7 +81,7 @@ class Population(object):
 
 class DNA(object):
     def __init__(self, genes=[], num_thrusters=1):
-        self.mag = 0.4  # Force scaling factor
+        self.mag = 0.1  # Force scaling factor
         self.num_thrusters = num_thrusters
 
         # If genes is not provided initializes a random value for it, otherwise takes it as a param
