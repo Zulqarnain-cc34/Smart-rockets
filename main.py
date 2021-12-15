@@ -11,21 +11,22 @@ from functools import reduce
 
 # screen
 WIDTH, HEIGHT = (1200, 800)
-TARGET = np.array([WIDTH / 2, 100])
-LIFESPAN = 600
+TARGET = np.array([WIDTH / 2, 300  + HEIGHT / 2])
+LIFESPAN = 500
 
 # Color
 BLACK = (0, 0, 0)
 RED = (255, 0, 0)
 WHITE = (255, 255, 255)
 
+# MAX_DIST = 0
 
 class Population(object):
     """ Creates a array of Rockets and Performs Functions as a whole"""
     def __init__(self):
 
         self.rockets = [] # Array to store rocket objects
-        self.pop_max = 25 # Maximum Population size
+        self.pop_max = 25  # Maximum Population size
 
         self.mating_pool = [] # to store copies of rocket objects for selection
 
@@ -49,6 +50,8 @@ class Population(object):
                 max_fitness = self.rockets[i].fitness
                 sum_fitness += self.rockets[i].fitness
 
+        # print("Max_fitness: ", max_fitness)
+        # THe more close to 1 the better
         print("Average Fitness: ", sum_fitness / max_fitness)
 
         for i in range(self.pop_max):
@@ -78,7 +81,7 @@ class Population(object):
 
 class DNA(object):
     def __init__(self, genes=[], num_thrusters=1):
-        self.mag = 0.6  # Force scaling factor
+        self.mag = 0.4  # Force scaling factor
         self.num_thrusters = num_thrusters
 
         # If genes is not provided initializes a random value for it, otherwise takes it as a param
@@ -100,7 +103,7 @@ class DNA(object):
                 newgenes[i] = partner.genes[i]
 
         # to minimize the new force vectors to small values
-        newgenes = newgenes * self.mag
+        # newgenes = newgenes * self.mag
 
         return DNA(newgenes, self.num_thrusters)
 
@@ -117,7 +120,7 @@ class DNA(object):
 class Rocket():
     count = 0
 
-    def __init__(self, dna=None, theta=90):
+    def __init__(self, dna=None, theta=30):
         # Accelartion, Velocity and Position Vectors
         self.acc = np.zeros((1, 2))[0]  # Starting Accwlartion 
         self.vel = np.zeros((1, 2))[0]  # Starting velocity
@@ -125,7 +128,8 @@ class Rocket():
         self.rocket_width = 30
         self.rocket_height = 30
 
-        self.pos = np.array([WIDTH / 2, HEIGHT / 2])    # Starting position
+        self.pos = np.array([WIDTH / 2,  100])    # Starting position
+        self.distance = 0
 
         self.theta_dot = 0  # Starting angular velocity
         self.fitness = 0    # Starting fitness value
@@ -134,13 +138,18 @@ class Rocket():
         self.theta = np.radians(theta)  # Starting Angle in Radians
         self.mag = 0.005                # Rotation Scaling Factor
 
-        self.booster_size = 20
+        self.booster_size = 20          # Scaling Factor of Booster image
 
         self.image = pygame.image.load("./assets/rocket.png")
         self.image = pygame.transform.scale(self.image, (self.rocket_height, self.rocket_height))
 
         self.booster = pygame.image.load("./assets/loud.png")
         self.booster = pygame.transform.scale(self.booster, (self.booster_size, self.booster_size))
+
+        self.completed = False
+        self.crashed = False
+        self.fitness_mag = 0.2
+        # self.distance = 
 
         if dna is not None:
             self.dna = dna
@@ -186,10 +195,15 @@ class Rocket():
 
     def calcfitness(self):
         """ calculates the distance between target and our current position and geives a fitness value """
-        d = self.dist(self.pos, TARGET)
+        distance = self.dist(self.pos, TARGET)
 
-        # max_dist = math.sqrt((TARGET[0]) ** 2 + (HEIGHT - TARGET[1]) ** 2)
-        self.fitness = mapRange(d, 0, WIDTH, 5000, 0)
+        self.fitness = mapRange(distance, 0, WIDTH, WIDTH, 0)
+
+        if self.completed:
+            self.fitness *= 10
+
+        if self.crashed:
+            self.fitness /= 10
 
     def collision(self):
         """ Detects collision with the edges of the screen and stops the rocket """
@@ -203,7 +217,7 @@ class Rocket():
 
     def dist(self, a, b):
         """ Euclidean Distance Formula """
-        return math.sqrt((b[1]- a[1]) ** 2 + (b[0] - a[0]) ** 2)
+        return math.sqrt((b[1]- a[1]) ** 2 + (b[0] - a[0]) ** 2) * self.fitness_mag
 
     def sum_of_all_torques(self, forces):
         """  Calculates the Torque from all the force Vectors and calculates it sum"""
@@ -229,10 +243,26 @@ class Rocket():
         """ Calculates the new velocity, position, angular velocity and theta based on the ΣF and Στ 
             , updates the new Forces and draws it on screen """
 
-        self.vel, self.pos = self.calculate(self.sum_of_all_forces(self.forces[i], self.theta), self.pos, self.vel)
-        self.theta_dot, self.theta = self.calculate(self.sum_of_all_torques(self.forces[i]), self.theta, self.theta_dot)
-        self.show(win)
+        dis = self.dist(TARGET, self.pos)
 
+        if dis < 10:
+            self.completed = True
+            self.pos = TARGET
+
+        # Rocket has hit left or right of window
+        if (self.pos[0] + self.rocket_width > WIDTH or self.pos[0] < 0):
+            self.crashed = True
+
+        # Rocket has hit top or bottom of window
+        if (self.pos[1] + self.rocket_height > HEIGHT or self.pos[1] < 0):
+            self.crashed = True
+
+
+        if not self.completed and not self.crashed:
+            self.vel, self.pos = self.calculate(self.sum_of_all_forces(self.forces[i], self.theta), self.pos, self.vel)
+            self.theta_dot, self.theta = self.calculate(self.sum_of_all_torques(self.forces[i]), self.theta, self.theta_dot)
+
+        self.show(win)
 
 # updates the screen with every main game loop
 def redrawwindow(win, rocket, counter):
@@ -244,7 +274,7 @@ def redrawwindow(win, rocket, counter):
 
 
 def draw_circle(win):
-    pygame.draw.circle(win, RED, (TARGET[0], TARGET[1]), 5)
+    pygame.draw.circle(win, RED, (TARGET[0], HEIGHT - TARGET[1]), 5)
 
 
 def Mainloop():
