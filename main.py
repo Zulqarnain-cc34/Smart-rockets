@@ -259,8 +259,9 @@ class Rocket():
 
 
         if not self.completed and not self.crashed:
-            self.vel, self.pos = self.calculate(self.sum_of_all_forces(self.forces[i], self.theta), self.pos, self.vel)
             self.theta_dot, self.theta = self.calculate(self.sum_of_all_torques(self.forces[i]), self.theta, self.theta_dot)
+            #FIX: We need to first calculate rotational matric by calculating theta so theta is theta is calculated first before finding sum of all forces
+            self.vel, self.pos = self.calculate(self.sum_of_all_forces(self.forces[i], self.theta), self.pos, self.vel)
 
         self.show(win)
 
